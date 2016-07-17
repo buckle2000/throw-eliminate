@@ -1,11 +1,15 @@
-module(..., package.seeall)
-local entity = require("entity")
+module("bricksys", package.seeall)
+require("entity")
+local tween = require("lib/tween")
 
 GRID_SIZE = 50
-COLORS = {
-	{255,0,0},
-	{0,255,0},
-	{0,0,255}
+TEXTURES = {
+	new_image_debug(50, 50, {0,0,255}),
+	new_image_debug(50, 50, {0,255,0}),
+	new_image_debug(50, 50, {132,53,122}),
+	new_image_debug(50, 50, {255,0,0}),
+	new_image_debug(50, 50, {255,255,0}),
+	new_image_debug(50, 50, {6,238,191})
 }
 
 brick_world = {}
@@ -30,11 +34,12 @@ function brick_world:get(x, y)
 end
 
 function brick_world:set(item, x, y)
-	assert(not (item and self:get(x, y)))
+	if item then assert(not self:get(x, y)) end  -- must not overwrite brick data
 	self.data[x+y*self.width+1] = item
 end
 
 function brick_world:freeze(brick)
+	assert(not brick.bricksys.frozen)
 	local b = brick.physics.body
 	local x, y = self:get_grid_pos(brick)
 	if self:get(x, y) then
@@ -43,14 +48,21 @@ function brick_world:freeze(brick)
 		b:setType('static')
 		brick.bricksys.frozen = {x=x, y=y}
 		self:set(brick, x, y)
-		x = (x + 0.5) * GRID_SIZE
-		y = (y + 0.5) * GRID_SIZE
-		b:setPosition(x, y)
+		local world_x = (x + 0.5) * GRID_SIZE
+		local world_y = (y + 0.5) * GRID_SIZE
+		b:setPosition(world_x, world_y)
+		local result = self:flood_fill(x, y)
+		if #result >= 3 then  -- eliminate
+			for i,v in ipairs(result) do
+				entity.destroy_entity(v)
+			end
+		end
 		return true, x, y  -- success
 	end
 end
 
 function brick_world:unfreeze(brick)
+	assert(brick.bricksys.frozen)
 	local x, y = self:get_grid_pos(brick)
 	brick.bricksys.frozen = nil
 	self:set(nil, x, y)
@@ -86,6 +98,7 @@ function brick_world:update(dt)
 end
 
 function brick_world:draw()
+	love.graphics.setColor(131, 131, 131)
 	for x=0,self.width-1 do
 		for y=0,self.height-1 do
 			local brick = self:get(x, y)
@@ -94,55 +107,49 @@ function brick_world:draw()
 			end
 		end
 	end
+	love.graphics.setColor(255, 255, 255)
 end
 
-function brick_world:construct_line(x, y, dx, dy, n)
-	rt = {}
-	for i=1,n do
-		table.insert(rt, self:get(x, y))
-		x, y = x+dx, y+dy
-	end
-	return rt
-end
-
-function brick_world:detect_once(x, y)
-	self:try_eliminate(x, y,  1,  0, 3)
-	self:try_eliminate(x, y,  0,  1, 3)
-	self:try_eliminate(x, y, -1,  0, 3)
-	self:try_eliminate(x, y,  0, -1, 3)
-	self:try_eliminate(x, y,  1,  1, 3)
-	self:try_eliminate(x, y,  1, -1, 3)
-	self:try_eliminate(x, y, -1,  1, 3)
-	self:try_eliminate(x, y, -1, -1, 3)
-end
-
-function brick_world:try_eliminate(x, y, dx, dy, n)
-	local line = self:construct_line(x, y, dx, dy, n)
-	local same = all_same_color(line)
-	if same then
-		for i,brick in ipairs(line) do
-			print(brick)
-			local x, y = get_grid_pos(brick)
-			entity.destroy_entity(brick)
-			self:set(nil, x, y)
-			x, y = x+dx, y+dy
-		end
-	end
-	return same
-end
-function all_same_color(line)
+function brick_world:flood_fill(x, y)
 	local color
-	for i,brick in ipairs(line) do
-		if not brick then
-			return false
-		end
-		if not color then
-			color = brick.tag.color
-		elseif color ~= brick.tag.color then
-			return false
+	do
+		local entity = self:get(x, y)
+		if entity then
+			color = entity.tag.color
+		else
+			return {}
 		end
 	end
-	return true
+	local result  = {}
+	local queue   = {{x, y}}
+	local visited = {}
+	while #queue > 0 do
+		local n = table.remove(queue, 1)
+		assert(n)
+		local x, y = unpack(n)
+		local entity = self:get(x, y)
+		if entity and color == entity.tag.color then
+			local already_visited = false
+			for i,v in ipairs(visited) do
+				if x==v[1] and y==v[2] then
+					already_visited = true
+					break
+				end
+			end
+			if not already_visited then
+				table.insert(result, entity)
+				table.insert(visited, n)
+				table.insert(queue, {x+1, y})
+				table.insert(queue, {x-1, y})
+				table.insert(queue, {x, y+1})
+				table.insert(queue, {x, y-1})
+			end
+		end
+	end
+	for i,v in ipairs(result) do
+		--print(unpack(v))
+	end
+	return result
 end
 
 function update_brick(self, dt)
@@ -150,10 +157,13 @@ function update_brick(self, dt)
 	if b:getType() == 'dynamic' then
 		if math.pyth(b:getLinearVelocity()) < 0.01 and is_on_ground(b, true) then
 			self.update.bricksys = nil
-			local success, x, y = brick_world:freeze(self)
-			-- if success then
-			-- 	brick_world:detect_once(x, y)
-			-- end
+			local x, y = self.physics.body:getPosition()
+			local desire_x, desire_y = brick_world:get_grid_pos(self)
+			desire_x = (desire_x + 0.5) * GRID_SIZE
+			desire_y = (desire_y + 0.5) * GRID_SIZE
+			self.graphics.ox, self.graphics.oy = desire_x - x + GRID_SIZE/2, desire_y - y + GRID_SIZE/2
+			entity.new_tween(self, {0.2, self.graphics, {ox=GRID_SIZE/2, oy=GRID_SIZE/2}, 'outQuart'})  -- make graphics tween
+			brick_world:freeze(self)
 		end
 	end
 end
