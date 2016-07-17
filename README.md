@@ -3,19 +3,19 @@ A three-eliminate platformer
 
 ![](Animation.gif)
 
-Controls:
+---
 
-Arrow keys: move and decide throw direction. do not try to use 'up' to jump.
+**Controls:**
 
-Space: jump
+|Input|Usage|
+|---|---|
+|*Arrow keys*|move and decide throw direction|
+|*Space*|jump|
+|*S*|Spawn a new tile|
+|*F*|Hold to grab a tile, release to ... release|
+|*R*|Reset|
 
-S: Spawn a new tile
-
-F: Hold to grab a tile, release to ... release
-
-R: Reset
-
-Goal:
+**Goal:**
 
 Put 3 or more tiles together to clear them
 
