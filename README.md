@@ -1,5 +1,5 @@
 # throw-eliminate
-A three-eliminate platformer
+A tile-matching platformer
 
 ![](Animation.gif)
 
