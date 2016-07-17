@@ -11,7 +11,8 @@ A tile-matching platformer
 |---|---|
 |*Arrow keys*|move and decide throw direction|
 |*Space*|jump|
-|*S*|Spawn a new tile|
+|*S*|Spawn a new tile per press|
+|*M*|Spawn a new tile per frame held|
 |*F*|Hold to grab a tile, release to ... release|
 |*R*|Reset|
 
