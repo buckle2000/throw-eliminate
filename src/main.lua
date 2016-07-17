@@ -10,17 +10,14 @@ end
 
 
 function love.draw()
-	for i,v in ipairs(entity.pool) do
-		if v.graphics then
-			if v.graphics.color then
-				love.graphics.setColor(v.graphics.color)
-			else
-				love.graphics.setColor(255, 255, 255)  -- restore
-			end
-			love.graphics.draw(v.graphics.image, v.transform.x, v.transform.y, 0, 1, 1, v.graphics.ox, v.graphics.oy)
+	for i,e in ipairs(filter_sort(entity.pool, function (e) return e.graphics end, function (e) return e.graphics.z end)) do
+		if e.graphics.color then
+			love.graphics.setColor(e.graphics.color)
+		else
+			love.graphics.setColor(255, 255, 255)  -- restore
 		end
+		love.graphics.draw(e.graphics.image, e.transform.x, e.transform.y, 0, 1, 1, e.graphics.ox, e.graphics.oy)
 	end
-
 	bricksys.brick_world:draw()
 end
 
@@ -28,8 +25,8 @@ end
 local reset_ff = new_flip_flop()
 local spawn_ff = new_flip_flop()
 function love.update(dt)
+	if love.keyboard.isDown('m') then spawn_brick() end
 	if reset_ff(love.keyboard.isDown('r')) then reset() end
-
 	if spawn_ff(love.keyboard.isDown('s')) then spawn_brick() end
 	
 	bricksys.brick_world:update(dt)
@@ -46,9 +43,9 @@ function love.update(dt)
 	phys_world:update(dt)
 
 	-- set entity's position the same as physics body
-	for i,v in ipairs(entity.pool) do
-		if v.physics then
-			v.transform.x, v.transform.y = v.physics.body:getPosition()
+	for i,e in ipairs(entity.pool) do
+		if e.physics then
+			e.transform.x, e.transform.y = e.physics.body:getPosition()
 		end
 	end
 	love.window.setTitle('FPS: '..love.timer.getFPS())
@@ -101,7 +98,8 @@ function is_on_ground(body, require_static, reverse)
 end
 
 function spawn_brick()
-	entity.new_brick(math.random(25, 775), math.random(-50, 0), math.choice(bricksys.TEXTURES))
+	local choice = math.random(1, #bricksys.TEXTURES)
+	entity.new_brick(math.random(25, 775), math.random(-50, 0), choice, bricksys.TEXTURES[choice])
 end
 
 function set_boundaries()
@@ -113,11 +111,11 @@ function set_boundaries()
 	local s
 	local width, height = love.graphics.getDimensions()
 	s = love.physics.newEdgeShape(0, -100, width, -100) -- ceiling
-	love.physics.newFixture(b, s):setRestitution(0.1)
+	love.physics.newFixture(b, s)
 	s = love.physics.newEdgeShape(0, -100, 0, height) -- left wall
 	love.physics.newFixture(b, s):setRestitution(0.1)
 	s = love.physics.newEdgeShape(0, height, width, height) -- floor
-	love.physics.newFixture(b, s):setRestitution(0.1)
+	love.physics.newFixture(b, s)
 	s = love.physics.newEdgeShape(width, -100, width, height) -- right wall
 	love.physics.newFixture(b, s):setRestitution(0.1)
 end

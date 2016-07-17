@@ -1,0 +1,50 @@
+Tilemancer 0.1.0
+
+Color 255 0 0
+Color 255 242 0
+Color 25 3 191
+Color 62 162 168
+Color 23 216 72
+Color 255 7 246
+PaletteSave1 
+PaletteSave2 
+FileSave1 \Users\buckle2000
+FileSave2 sfdddddd
+Indexed 0
+Size 50
+Camera 0 0
+Node {
+Name bricks.lua
+Position 143.49 34.3197
+Parameter -627 -1 -1 0
+Parameter 1 1 -1 0
+Parameter 1 1 -1 0
+Parameter 1 1 -1 0
+Parameter 40 0 100 0
+Parameter 140 0 -1 0
+}
+Node {
+Name blend.lua
+Position 374.987 113.898
+Parameter 0 0 5 0
+Parameter 70 0 100 0
+Connection 0 3 0
+Connection 1 2 0
+}
+Node {
+Name colorizer.lua
+Position 171.455 248.302
+Ramp {
+Point 0 354.56 0.75568 0.999409
+}
+Parameter 0 0 0 0
+Parameter 0 0 0 0
+Parameter 354.56 0.75568 0.999409 0
+}
+Node {
+Name lighting.lua
+Position 250.808 53.9744
+Parameter -29 -1 -1 0
+Parameter 10 0 100 0
+Connection 0 0 0
+}

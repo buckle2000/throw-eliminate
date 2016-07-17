@@ -39,6 +39,10 @@ function math.pyth(a, b)  -- Pythagorean theorem  勾股定理
 	return math.sqrt(a*a + b*b)
 end
 
+function math.randomf(lower_bound, upper_bound)
+	return lower_bound + math.random() * (upper_bound - lower_bound)
+end
+
 function math.limit(n, lower_bound, upper_bound)
 	if n<lower_bound then
 		return lower_bound
@@ -73,4 +77,18 @@ function new_flip_flop()
 		return false
 	end
 	return step
+end
+
+function filter_sort(t, pred, key)
+	r = {}
+	for i,v in ipairs(t) do
+		if pred(v) then
+			local index = #r + 1
+			while index > 1 and key(r[index-1]) > key(v) do
+				index = index - 1
+			end
+			table.insert(r, index, v)
+		end
+	end
+	return r
 end

@@ -63,12 +63,13 @@ function detach_physics(e)
 	end
 end
 
-function attach_graphics(e, drawable, ox, oy)
+function attach_graphics(e, drawable, ox, oy, z)
 	attach_transform(e)
 	e.graphics = e.graphics or {}
 	e.graphics.image = drawable
 	e.graphics.ox = ox
 	e.graphics.oy = oy
+	e.graphics.z = z or 0
 end
 
 function attach_graphics_debug(e, width, height, color, ox, oy)
@@ -83,30 +84,35 @@ function attach_graphics_debug(e, width, height, color, ox, oy)
 	attach_graphics(e, image, ox or width/2, oy or height/2)
 end
 
-function attach_bricksys(e, color)
+function attach_bricksys(e, type)
+	assert(type, "A brick must have a type (maybe 'any').")
 	assert(e.physics, "A brick must have a physics body.")
 	e.tag.type = 'brick'
 	e.tag.ground = true
 	e.tag.moveable = true
-	e.tag.color = color
 	e.bricksys = {}
+	e.bricksys.type = type
 	e.physics.body:setFixedRotation(true)
 	e.physics.body:setBullet(true)  -- for some drastic collisions
-	e.update = {bricksys=bricksys.update_brick}
+	e.update = e.update or {}
+	e.update.bricksys = bricksys.update_brick
 end
 
 function detach_bricksys(e)
+	e.update.bricksys = nil
 	if e.bricksys then
+		e.bricksys = nil
 		table.popk(bricksys.brick_world.data, e)
 	end
 end
 
-function new_tween(e, args, cb_complete)
+function new_tween(e, args, cb_complete, custom_name)
+	custom_name = custom_name or "generic"
 	local tween_func = tween.new(unpack(args))
-	e.update.tween = function (self, dt)
+	e.update[custom_name] = function (self, dt)
 			local complete = tween_func:update(dt)
 			if complete then
-				self.update.tween = nil
+				self.update[custom_name] = nil
 				if cb_complete then
 					cb_complete(self)
 				end

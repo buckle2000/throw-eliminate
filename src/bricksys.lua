@@ -3,14 +3,17 @@ require("entity")
 local tween = require("lib/tween")
 
 GRID_SIZE = 50
-TEXTURES = {
-	new_image_debug(50, 50, {0,0,255}),
-	new_image_debug(50, 50, {0,255,0}),
-	new_image_debug(50, 50, {132,53,122}),
-	new_image_debug(50, 50, {255,0,0}),
-	new_image_debug(50, 50, {255,255,0}),
-	new_image_debug(50, 50, {6,238,191})
-}
+TEXTURES = {}
+for i=1,6 do
+	TEXTURES[i] = love.graphics.newImage('assets/tile_'..i..'.png')
+end
+-- debug textures
+-- new_image_debug(50, 50, {0,0,255}),
+-- new_image_debug(50, 50, {0,255,0}),
+-- new_image_debug(50, 50, {132,53,122}),
+-- new_image_debug(50, 50, {255,0,0}),
+-- new_image_debug(50, 50, {255,255,0}),
+-- new_image_debug(50, 50, {6,238,191})
 
 brick_world = {}
 
@@ -115,7 +118,7 @@ function brick_world:flood_fill(x, y)
 	do
 		local entity = self:get(x, y)
 		if entity then
-			color = entity.tag.color
+			color = entity.bricksys.type
 		else
 			return {}
 		end
@@ -128,7 +131,7 @@ function brick_world:flood_fill(x, y)
 		assert(n)
 		local x, y = unpack(n)
 		local entity = self:get(x, y)
-		if entity and color == entity.tag.color then
+		if entity and color == entity.bricksys.type then
 			local already_visited = false
 			for i,v in ipairs(visited) do
 				if x==v[1] and y==v[2] then

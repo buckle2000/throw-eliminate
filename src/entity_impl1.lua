@@ -133,6 +133,7 @@ function cb_player_grab(self, entity)
 	entity.physics.body:setPosition(x, y-40)
 	entity.physics.fixture:setSensor(true)
 	entity.physics.body:setMassData(0,0,0,0)
+	entity.graphics.z = 1
 	self.tag.hold.joint = love.physics.newWeldJoint(self.physics.body, entity.physics.body, 0, 0, 0, 0)
 end
 
@@ -151,8 +152,10 @@ function cb_player_release(self, cx, cy)
 		b:setPosition(x, y-30)
 	end
 	local multiplier = eb:getMass()*300
-	eb:applyLinearImpulse(cx * multiplier, cy * multiplier)
-	b:applyLinearImpulse(-cx * multiplier, -cy * multiplier)
+	local ix, iy = cx * multiplier, cy * multiplier
+	eb:applyLinearImpulse(ix ,iy)
+	b:applyLinearImpulse(ix * -0.5, iy * -0.5)
+	entity.graphics.z = 0
 end
 
 function new_player(x, y)
@@ -182,12 +185,32 @@ local brick_shape = love.physics.newPolygonShape(
 		 v1,  v2,  v2,  v1,
 		-v2,  v1, -v1,  v2
 	)  -- an octagon
-function new_brick(x, y, image)
+function new_brick(x, y, type, image)
 	local e = new_entity()
 	attach_graphics(e, image, bricksys.GRID_SIZE/2, bricksys.GRID_SIZE/2)
 	attach_physics(e, x, y, 'dynamic', brick_shape)
 	e.physics.fixture:setFriction(0.1)  -- make it slippery
-	e.physics.fixture:setRestitution(0.1)
-	attach_bricksys(e, image)
+	-- e.physics.fixture:setRestitution(0.1)
+	attach_bricksys(e, type)
+	e.destroy = function (self)
+			if self.bricksys then
+				detach_bricksys(e)
+				detach_physics(e)
+				e.transform.vx = math.randomf(-200, 200)
+				e.transform.vy = math.randomf(-400,-350)
+				e.graphics.z = -1
+				e.update.fall = function (self, dt)
+						e.transform.x = e.transform.x + e.transform.vx * dt
+						e.transform.y = e.transform.y + e.transform.vy * dt
+						if e.transform.y > love.graphics.getHeight() + bricksys.GRID_SIZE then
+							destroy_entity(self)
+							return
+						end
+						self.transform.vy = self.transform.vy + 1500*dt
+					end
+				return true
+			end
+			return false
+		end
 	return e
 end
