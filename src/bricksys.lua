@@ -1,5 +1,5 @@
 module("bricksys", package.seeall)
-require("entity")
+require("entitysys")
 local tween = require("lib/tween")
 
 GRID_SIZE = 50
@@ -7,13 +7,6 @@ TEXTURES = {}
 for i=1,6 do
 	TEXTURES[i] = love.graphics.newImage('assets/tile_'..i..'.png')
 end
--- debug textures
--- new_image_debug(50, 50, {0,0,255}),
--- new_image_debug(50, 50, {0,255,0}),
--- new_image_debug(50, 50, {132,53,122}),
--- new_image_debug(50, 50, {255,0,0}),
--- new_image_debug(50, 50, {255,255,0}),
--- new_image_debug(50, 50, {6,238,191})
 
 brick_world = {}
 
@@ -54,13 +47,42 @@ function brick_world:freeze(brick)
 		local world_x = (x + 0.5) * GRID_SIZE
 		local world_y = (y + 0.5) * GRID_SIZE
 		b:setPosition(world_x, world_y)
-		local result = self:flood_fill(x, y)
-		if #result >= 3 then  -- eliminate
-			for i,v in ipairs(result) do
-				entity.destroy_entity(v)
+		self:try_eliminate(x, y, 3)
+		return true, x, y  -- success
+	end
+end
+
+function brick_world:try_eliminate(start_x, start_y, least_group)
+	local group = self:flood_fill(start_x, start_y)
+	local latest_touch_player = nil
+	local latest_touch_time = 0
+	local now = love.timer.getTime()
+	if #group >= least_group then  -- eliminate
+		local affected = {}
+		for i,e in ipairs(group) do
+			local time = e.bricksys.last_hold.time
+			local subject = e.bricksys.last_hold.subject
+			if time > latest_touch_time then
+				latest_touch_time = time
+				latest_touch_player = subject
+			end
+			table.insert(affected, {self:get_grid_pos(e)})
+			entitysys.destroy_entity(e)
+		end
+		if latest_touch_player then
+			for i,v in ipairs(affected) do
+				local x, y = unpack(v)
+				if y ~= 0 then
+					local above = self:get(x, y-1)
+					if above then
+						update_last_hold(above, latest_touch_player)
+					end
+				end
 			end
 		end
-		return true, x, y  -- success
+	end
+	if latest_touch_player and latest_touch_player.bricksys and latest_touch_player.bricksys.cb then
+		latest_touch_player.bricksys.cb(latest_touch_player, #group)
 	end
 end
 
@@ -69,11 +91,12 @@ function brick_world:unfreeze(brick)
 	local x, y = self:get_grid_pos(brick)
 	brick.bricksys.frozen = nil
 	self:set(nil, x, y)
-	brick.update.bricksys = update_brick
+	entitysys.add_pre_update(brick, update_brick, "bricksys")
 	brick.physics.body:setType('dynamic')
 end
 
 function brick_world:get_grid_pos(brick)
+	assert(brick.bricksys)
 	local pos = brick.bricksys.frozen
 	if pos then
 		return pos.x, pos.y
@@ -101,16 +124,19 @@ function brick_world:update(dt)
 end
 
 function brick_world:draw()
-	love.graphics.setColor(131, 131, 131)
+	love.graphics.setColor(255,255,255)
+	love.graphics.setLineStyle('rough')
+	love.graphics.setLineWidth(1)
 	for x=0,self.width-1 do
 		for y=0,self.height-1 do
 			local brick = self:get(x, y)
 			if brick then
-				love.graphics.circle('line', (x + 0.5) * GRID_SIZE, (y + 0.5) * GRID_SIZE, 10)
+				love.graphics.rectangle('line', x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE)
+				-- love.graphics.circle('line', (x + 0.5) * GRID_SIZE, (y + 0.5) * GRID_SIZE, 10)
 			end
 		end
 	end
-	love.graphics.setColor(255, 255, 255)
+	-- love.graphics.setColor(255, 255, 255)
 end
 
 function brick_world:flood_fill(x, y)
@@ -149,24 +175,29 @@ function brick_world:flood_fill(x, y)
 			end
 		end
 	end
-	for i,v in ipairs(result) do
-		--print(unpack(v))
-	end
 	return result
+end
+
+function update_last_hold(entity, subject)
+	entity.bricksys.last_hold = {
+		subject = subject,
+		time = love.timer.getTime()
+	}
 end
 
 function update_brick(self, dt)
 	local b = self.physics.body
 	if b:getType() == 'dynamic' then
 		if math.pyth(b:getLinearVelocity()) < 0.01 and is_on_ground(b, true) then
-			self.update.bricksys = nil
 			local x, y = self.physics.body:getPosition()
-			local desire_x, desire_y = brick_world:get_grid_pos(self)
-			desire_x = (desire_x + 0.5) * GRID_SIZE
-			desire_y = (desire_y + 0.5) * GRID_SIZE
-			self.graphics.ox, self.graphics.oy = desire_x - x + GRID_SIZE/2, desire_y - y + GRID_SIZE/2
-			entity.new_tween(self, {0.2, self.graphics, {ox=GRID_SIZE/2, oy=GRID_SIZE/2}, 'outQuart'})  -- make graphics tween
-			brick_world:freeze(self)
+			local success, desire_x, desire_y = brick_world:freeze(self)
+			if success then
+				entitysys.remove_pre_update(self, "bricksys")
+				desire_x = (desire_x + 0.5) * GRID_SIZE
+				desire_y = (desire_y + 0.5) * GRID_SIZE
+				self.graphics.ox, self.graphics.oy = desire_x - x + GRID_SIZE/2, desire_y - y + GRID_SIZE/2
+				entitysys.new_tween(self, {0.2, self.graphics, {ox=GRID_SIZE/2, oy=GRID_SIZE/2}, 'outQuart'})  -- make graphics tween
+			end
 		end
 	end
 end

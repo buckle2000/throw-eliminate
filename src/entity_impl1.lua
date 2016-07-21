@@ -1,7 +1,186 @@
-module("entity", package.seeall)
+module("entitysys", package.seeall)
 -- Some entity types
 
-local function new_ctrl_func(input_func, max_v, jump_mag, grab_cb, release_cb)
+function cb_player_grab(self, entity)
+	assert(entity.tag.type == 'brick')
+	self.tag.hold = {}
+	self.tag.hold.entity = entity
+	-- not working
+	-- local x, y = bricksys.brick_world:get_grid_pos(entity)
+	-- if y ~= 0 then
+	-- 	local above = bricksys.brick_world:get(x, y-1)
+	-- 	if above then
+	-- 		bricksys.update_last_hold(above, self)
+	-- 	end
+	-- end
+	if entity.bricksys.frozen then
+		local x, y = bricksys.brick_world:get_grid_pos(entity)
+		if y ~= 0 then
+			local brick_above = bricksys.brick_world:get(x, y-1)
+			if brick_above then
+				bricksys.update_last_hold(brick_above, self)
+			end
+		end
+		bricksys.brick_world:unfreeze(entity)
+	end
+	local world_w, world_y = self.physics.body:getPosition()
+	entity.physics.body:setPosition(world_w, world_y-40)
+	entity.physics.fixture:setSensor(true)
+	entity.physics.body:setMassData(0,0,0,0)
+	entity.graphics.z = 1
+	self.tag.hold.joint = love.physics.newWeldJoint(self.physics.body, entity.physics.body, 0, 0, 0, 0)
+end
+
+function cb_player_release(self, cx, cy)
+	assert(self.tag.hold)
+	local entity = self.tag.hold.entity
+	bricksys.update_last_hold(entity, self)
+	local b = self.physics.body
+	local eb = entity.physics.body
+	self.tag.hold.joint:destroy()
+	self.tag.hold = nil
+	entity.physics.fixture:setSensor(false)
+	eb:resetMassData()
+	if cy>0 then  -- throw downwards
+		local x, y = b:getPosition()
+		eb:setPosition(x, y)
+		b:setPosition(x, y-30)
+	end
+	local multiplier = eb:getMass()*300
+	do  -- a throw should not be more powerful when aiming diagonally
+		local magnitude = math.pyth(cx, cy)
+		if magnitude > 1 then
+			cx, cy = cx/magnitude, cy/magnitude  -- make total magnitude be 1
+		end
+	end
+	local ix, iy = cx * multiplier, cy * multiplier
+	eb:applyLinearImpulse(ix ,iy)
+	b:applyLinearImpulse(ix * -0.5, iy * -0.5)
+	entity.graphics.z = 0
+end
+
+function new_player(x, y, input_func)
+	local e = new_entity()
+	e.tag.type = 'player'
+	e.tag.score = 0
+	e.tag.tweened_score = 0.0
+	local WIDTH = 40
+	attach_graphics_debug(e, WIDTH, WIDTH, {255,255,255})
+	attach_physics(e, x, y, 'dynamic', love.physics.newRectangleShape(WIDTH, WIDTH))
+	e.physics.fixture:setFriction(0)
+	e.physics.body:setFixedRotation(true)
+	local shader = love.graphics.newShader([[
+			uniform float hue;
+			uniform vec2 player_pos;
+			vec3 rgb2hsv(vec3 c) {
+				vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+				vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+				vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+				float d = q.x - min(q.w, q.y);
+				float e = 1.0e-10;
+				return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+			}
+			vec3 hsv2rgb(vec3 c) {
+				vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+				vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+				return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+			}
+			vec4 effect(vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords) {
+				screen_coords = screen_coords - player_pos;
+				color = Texel(texture, texture_coords);
+				vec3 hsv = vec3(mod(hue + screen_coords.x/100 + screen_coords.y/200, 1.0), 1, 1);
+				return vec4(hsv2rgb(hsv), color.a);
+			}
+		]])
+	e.graphics.draw = function (self)
+			default_draw(self)
+			love.graphics.setShader(shader)
+			-- draw a pyramid of blocks above player
+			local score = math.floor(e.tag.tweened_score)
+			local current_layer = 1
+			local layers = {}
+			while score > current_layer do
+				score = score - current_layer
+				table.insert(layers, current_layer)
+				current_layer = current_layer + 1
+			end
+			table.insert(layers, score)
+			for l=1,#layers do
+				local n = layers[l]  -- numbers of blocks in that layer
+				love.graphics.push()
+				love.graphics.translate(self.transform.x - l*5 - 9, self.transform.y - self.graphics.oy - l*10)
+				for i=1,n do
+					love.graphics.rectangle('fill', i*10, 0, 8, 8)
+				end
+				love.graphics.pop()
+			end
+			love.graphics.setShader()
+		end
+	add_pre_update(e, new_ctrl_func(input_func, 600, 520, cb_player_grab, cb_player_release), "ctrl")
+	local shader_helper = function (self, dt)
+			shader:send("hue", (love.timer.getTime()/2)%1)
+			shader:send("player_pos", {e.transform.x, e.transform.y})
+		end
+	add_post_update(e, shader_helper, "shader_helper")
+	e.bricksys = {}
+	e.bricksys.cb = function (self, award)
+			self.tag.score = self.tag.score + award
+			new_tween(self, {0.2, self.tag, {tweened_score=self.tag.score}, 'outCirc'}, nil, "score_tweener")
+		end
+	e.destroy = function (self)
+			if self.tag.hold then
+				local entity = self.tag.hold.entity
+				cb_player_release(self, 0, 0)
+				bricksys.update_last_hold(entity, nil)
+			end
+			return false  -- use default detroy behavior
+		end
+	return e
+end
+
+do  -- new_brick
+	local v1 = (bricksys.GRID_SIZE-1) / 2  -- the -1 here leave space for non-frozen bricks to sleep
+	local v2 = (bricksys.GRID_SIZE-1) * 0.28
+	local brick_shape = love.physics.newPolygonShape(
+			-v1, -v2, -v2, -v1,
+			 v2, -v1,  v1, -v2,
+			 v1,  v2,  v2,  v1,
+			-v2,  v1, -v1,  v2
+		)  -- an octagon
+	function new_brick(x, y, type, image)
+		local e = new_entity()
+		attach_graphics(e, image, bricksys.GRID_SIZE/2, bricksys.GRID_SIZE/2)
+		attach_physics(e, x, y, 'dynamic', brick_shape)
+		e.physics.fixture:setFriction(0.1)  -- make it slippery
+		-- e.physics.fixture:setRestitution(0.1)
+		attach_bricksys(e, type)
+		e.destroy = function (self)
+				if self.bricksys then
+					detach_bricksys(e)
+					detach_physics(e)
+					e.transform.vx = math.randomf(-200, 200)
+					e.transform.vy = math.randomf(-400,-350)
+					e.graphics.z = -1
+					local fall_auto = function (self, dt)
+							e.transform.x = e.transform.x + e.transform.vx * dt
+							e.transform.y = e.transform.y + e.transform.vy * dt
+							if e.transform.y > love.graphics.getHeight() + bricksys.GRID_SIZE then
+								remove_pre_update(self, "fall")
+								destroy_entity(self)
+								return
+							end
+							self.transform.vy = self.transform.vy + 1500*dt
+						end
+					add_pre_update(e, fall_auto, "fall")
+					return true
+				end
+				return false
+			end
+		return e
+	end
+end
+
+function new_ctrl_func(input_func, max_v, jump_mag, grab_cb, release_cb)
 	--[[
 	Simple movement controller to make a entity jump and walk. Use arrow keys to control. Do not work with physics.
 
@@ -90,127 +269,4 @@ local function new_ctrl_func(input_func, max_v, jump_mag, grab_cb, release_cb)
 	end
 
 	return update
-end
-
-local function new_input_keyboard(key_up, key_down, key_left, key_right, key_jump, key_grab)
-	local has_jump = false
-
-	function check_input()
-		local cx, cy, jump = 0, 0, false
-		if love.keyboard.isDown(key_up) then
-			cy = cy - 1
-		end
-		if love.keyboard.isDown(key_jump) then
-			if not has_jump then
-				has_jump = true
-				jump = true
-			end
-		else
-			has_jump = false
-		end
-		if love.keyboard.isDown(key_down) then
-			cy = cy + 1
-		end
-		if love.keyboard.isDown(key_left) then
-			cx = cx - 1
-		end
-		if love.keyboard.isDown(key_right) then
-			cx = cx + 1
-		end
-		return cx, cy, jump, love.keyboard.isDown(key_grab)
-	end
-	return check_input
-end
-
-function cb_player_grab(self, entity)
-	assert(entity.tag.type == 'brick')
-	self.tag.hold = {}
-	self.tag.hold.entity = entity
-	if entity.bricksys.frozen then
-		bricksys.brick_world:unfreeze(entity)
-	end
-	local x, y = self.physics.body:getPosition()
-	entity.physics.body:setPosition(x, y-40)
-	entity.physics.fixture:setSensor(true)
-	entity.physics.body:setMassData(0,0,0,0)
-	entity.graphics.z = 1
-	self.tag.hold.joint = love.physics.newWeldJoint(self.physics.body, entity.physics.body, 0, 0, 0, 0)
-end
-
-function cb_player_release(self, cx, cy)
-	assert(self.tag.hold)
-	local entity = self.tag.hold.entity
-	local b = self.physics.body
-	local eb = entity.physics.body
-	self.tag.hold.joint:destroy()
-	self.tag.hold = nil
-	entity.physics.fixture:setSensor(false)
-	eb:resetMassData()
-	if cy>0 then  -- throw downwards
-		local x, y = b:getPosition()
-		eb:setPosition(x, y)
-		b:setPosition(x, y-30)
-	end
-	local multiplier = eb:getMass()*300
-	local ix, iy = cx * multiplier, cy * multiplier
-	eb:applyLinearImpulse(ix ,iy)
-	b:applyLinearImpulse(ix * -0.5, iy * -0.5)
-	entity.graphics.z = 0
-end
-
-function new_player(x, y)
-	local e = new_entity()
-	e.tag.type = 'player'
-	local WIDTH = 40
-	attach_graphics_debug(e, WIDTH, WIDTH, {255,255,255})
-	attach_physics(e, x, y, 'dynamic', love.physics.newRectangleShape(WIDTH, WIDTH))
-	e.physics.fixture:setFriction(0)
-	e.physics.body:setFixedRotation(true)
-	local ctrl = new_ctrl_func(new_input_keyboard('up', 'down', 'left', 'right', 'space', 'f'),
-			600, 520, cb_player_grab, cb_player_release)
-	e.update = {}
-	e.update.ctrl = ctrl
-	e.update.change_color = function (self, dt)
-			self.graphics.color = {math.random(0,255), math.random(0,255), math.random(0,255)}
-		end
-
-	return e
-end
-
-local v1 = (bricksys.GRID_SIZE-1) / 2  -- the -1 here leave space for non-frozen bricks to sleep
-local v2 = (bricksys.GRID_SIZE-1) * 0.28
-local brick_shape = love.physics.newPolygonShape(
-		-v1, -v2, -v2, -v1,
-		 v2, -v1,  v1, -v2,
-		 v1,  v2,  v2,  v1,
-		-v2,  v1, -v1,  v2
-	)  -- an octagon
-function new_brick(x, y, type, image)
-	local e = new_entity()
-	attach_graphics(e, image, bricksys.GRID_SIZE/2, bricksys.GRID_SIZE/2)
-	attach_physics(e, x, y, 'dynamic', brick_shape)
-	e.physics.fixture:setFriction(0.1)  -- make it slippery
-	-- e.physics.fixture:setRestitution(0.1)
-	attach_bricksys(e, type)
-	e.destroy = function (self)
-			if self.bricksys then
-				detach_bricksys(e)
-				detach_physics(e)
-				e.transform.vx = math.randomf(-200, 200)
-				e.transform.vy = math.randomf(-400,-350)
-				e.graphics.z = -1
-				e.update.fall = function (self, dt)
-						e.transform.x = e.transform.x + e.transform.vx * dt
-						e.transform.y = e.transform.y + e.transform.vy * dt
-						if e.transform.y > love.graphics.getHeight() + bricksys.GRID_SIZE then
-							destroy_entity(self)
-							return
-						end
-						self.transform.vy = self.transform.vy + 1500*dt
-					end
-				return true
-			end
-			return false
-		end
-	return e
 end

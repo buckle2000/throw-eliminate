@@ -1,1 +1,4 @@
 /build/ 
+/love32/
+*.cmd
+*.exe

@@ -1,4 +1,4 @@
-module("entity", package.seeall)
+module("entitysys", package.seeall)
 require("bricksys")
 require("entity_impl1")  -- extended definition
 local tween = require("lib/tween")
@@ -27,6 +27,44 @@ function destroy_entity(e)
 	end
 end
 
+function add_pre_update(e, func, custom_name)
+	custom_name = custom_name or func
+	e.update = e.update or {}
+	e.update.pre = e.update.pre or {}
+	e.update.pre[custom_name] = func
+end
+
+function add_post_update(e, func, custom_name)
+	custom_name = custom_name or func
+	e.update = e.update or {}
+	e.update.post = e.update.post or {}
+	e.update.post[custom_name] = func
+end
+
+function remove_pre_update(e, name)
+	if e.update and e.update.pre then
+		e.update.pre[name] = nil
+		if next(e.update.pre) == nil then
+			e.update.pre = nil
+			if next(e.update) == nil then
+				e.update = nil
+			end
+		end
+	end
+end
+
+function remove_post_update(e, name)
+	if e.update and e.update.post then
+		e.update.post[name] = nil
+		if next(e.update.post) == nil then
+			e.update.post = nil
+			if next(e.update) == nil then
+				e.update = nil
+			end
+		end
+	end
+end
+
 function attach_transform(e)
 	e.transform = e.transform or {
 	x = 0,
@@ -47,6 +85,8 @@ function attach_physics(e, x, y, body_type, shape, density)
 	e.physics = {}
 	local p = e.physics
 	p.body = love.physics.newBody(phys_world, x, y, body_type)
+	p.body:setBullet(true)  -- for some drastic collisions
+
 	p.body:setUserData(e)
 	if shape then
 		p.shape = shape
@@ -63,10 +103,10 @@ function detach_physics(e)
 	end
 end
 
-function attach_graphics(e, drawable, ox, oy, z)
+function attach_graphics(e, texture, ox, oy, z)
 	attach_transform(e)
 	e.graphics = e.graphics or {}
-	e.graphics.image = drawable
+	e.graphics.texture = texture
 	e.graphics.ox = ox
 	e.graphics.oy = oy
 	e.graphics.z = z or 0
@@ -80,8 +120,8 @@ function attach_graphics_debug(e, width, height, color, ox, oy)
 	color           color of the rectangle  e.g. {0,0,0}
 	ox, oy          offset of graphic
 	--]]
-	local image = new_image_debug(width, height, color)
-	attach_graphics(e, image, ox or width/2, oy or height/2)
+	local texture = new_image_debug(width, height, color)
+	attach_graphics(e, texture, ox or width/2, oy or height/2)
 end
 
 function attach_bricksys(e, type)
@@ -92,14 +132,14 @@ function attach_bricksys(e, type)
 	e.tag.moveable = true
 	e.bricksys = {}
 	e.bricksys.type = type
+	bricksys.update_last_hold(e, nil)
 	e.physics.body:setFixedRotation(true)
 	e.physics.body:setBullet(true)  -- for some drastic collisions
-	e.update = e.update or {}
-	e.update.bricksys = bricksys.update_brick
+	add_pre_update(e, bricksys.update_brick, "bricksys")
 end
 
 function detach_bricksys(e)
-	e.update.bricksys = nil
+	remove_pre_update(e, "bricksys")
 	if e.bricksys then
 		e.bricksys = nil
 		table.popk(bricksys.brick_world.data, e)
@@ -109,38 +149,15 @@ end
 function new_tween(e, args, cb_complete, custom_name)
 	custom_name = custom_name or "generic"
 	local tween_func = tween.new(unpack(args))
-	e.update[custom_name] = function (self, dt)
+	local wrapped = function (self, dt)
 			local complete = tween_func:update(dt)
 			if complete then
-				self.update[custom_name] = nil
+				remove_pre_update(e, custom_name)
 				if cb_complete then
 					cb_complete(self)
 				end
 			end
 		end
+	add_pre_update(e, wrapped, custom_name)
 end
-
--- function new_tilemap(map_data)
--- 	--[[
--- 	Create a new tilemap from a table or a lua file (exported by Tiled).
--- 	--]]
--- 	if type(map_data) == 'string' then
--- 		map_data = require(map_data)
--- 	end
-
--- 	local e = new_entity()
--- 	local WIDTH = 50
--- 	e.tiles = {}
--- 	for i=1,#map_data.data do
--- 		if map_data.data[i] > 0 then
--- 			local tile_x = (i-1) % map_data.width
--- 			local tile_y = math.floor((i-1) / map_data.width)
--- 			local tile = new_entity()
--- 			attach_graphics_debug(tile, WIDTH, WIDTH, {130,170,255})  -- need faster solution: draw all tiles to a single image
--- 			attach_physics(tile, {tile_x*WIDTH, tile_y*WIDTH, WIDTH, WIDTH})
--- 			e.tiles[i] = tile
--- 		end
--- 	end
--- 	return e
--- end
 

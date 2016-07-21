@@ -1,4 +1,4 @@
--- some function hacks
+-- some function "hacks"
 
 function table.popi(t, item)
 	for i,v in ipairs(t) do
@@ -53,6 +53,9 @@ function math.limit(n, lower_bound, upper_bound)
 	end
 end
 
+
+------ Helper Functions Below ------
+
 function new_image_debug(width, height, fill_color)
 	local image_data = love.image.newImageData(width, height)
 	for x=0,width-1 do
@@ -91,4 +94,89 @@ function filter_sort(t, pred, key)
 		end
 	end
 	return r
+end
+
+function is_on_ground(body, require_static, reverse)
+	--[[
+	Tell if a body is on top of any object.
+
+	require_static   if the 'ground' body must be static
+	--]]
+	for i,contact in ipairs(body:getContactList()) do
+		if contact:isTouching() then
+			local fixture1, fixture2 = contact:getFixtures()
+			local normal_x, normal_y = contact:getNormal()
+			local body1 = fixture1:getBody()
+			if body == body1 and math.ldexp(normal_x, 8) < 1 then
+				local body2 = fixture2:getBody()
+				if (not require_static or body2:getType() == 'static') and
+						body2:getUserData().tag.ground then
+					if (reverse and normal_y < 0) or normal_y > 0 then
+						return true
+					end
+				end
+			else
+				if (not require_static or body1:getType() == 'static') and
+						body1:getUserData().tag.ground then
+					if (reverse and normal_y > 0) or normal_y < 0 then
+						return true
+					end
+				end
+			end
+		end
+	end
+	return false
+end
+
+function spawn_brick(choice)
+	local choice = choice or math.random(1, #bricksys.TEXTURES)
+	entitysys.new_brick(math.random(25, 775), math.random(-50, 0), choice, bricksys.TEXTURES[choice])
+end
+
+function set_boundaries()
+	local boundaries = entitysys.new_entity()
+	boundaries.tag.type = 'boundary'
+	boundaries.tag.ground = true
+	entitysys.attach_physics(boundaries, 0, 0, 'static')
+	local b = boundaries.physics.body
+	local s
+	local width, height = love.graphics.getDimensions()
+	s = love.physics.newEdgeShape(0, -100, width, -100) -- ceiling
+	love.physics.newFixture(b, s)
+	s = love.physics.newEdgeShape(0, -100, 0, height) -- left wall
+	love.physics.newFixture(b, s):setRestitution(0.1)
+	s = love.physics.newEdgeShape(0, height, width, height) -- floor
+	love.physics.newFixture(b, s)
+	s = love.physics.newEdgeShape(width, -100, width, height) -- right wall
+	love.physics.newFixture(b, s):setRestitution(0.1)
+end
+
+function new_input_keyboard(key_up, key_down, key_left, key_right, key_jump, key_grab)
+	local has_jump = false
+
+	function check_input()
+		local cx, cy, jump = 0, 0, false
+		if love.keyboard.isDown(key_up) then
+			cy = cy - 1
+		end
+		if love.keyboard.isDown(key_jump) then
+			if not has_jump then
+				has_jump = true
+				jump = true
+			end
+		else
+			has_jump = false
+		end
+		if love.keyboard.isDown(key_down) then
+			cy = cy + 1
+		end
+		if love.keyboard.isDown(key_left) then
+			cx = cx - 1
+		end
+		if love.keyboard.isDown(key_right) then
+			cx = cx + 1
+		end
+		return cx, cy, jump, love.keyboard.isDown(key_grab)
+	end
+	return check_input
 end
