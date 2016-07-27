@@ -46,7 +46,7 @@ function remove_pre_update(e, name)
 		e.update.pre[name] = nil
 		if next(e.update.pre) == nil then
 			e.update.pre = nil
-			if next(e.update) == nil then
+			if next(e.update) == 0 then
 				e.update = nil
 			end
 		end

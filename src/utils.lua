@@ -66,21 +66,22 @@ function new_image_debug(width, height, fill_color)
 	return love.graphics.newImage(image_data)
 end
 
-function new_flip_flop()
-	local last_state = false
-	function step(state)
-		if state then
-			if not last_state then
-				last_state = true
-				return true
-			end
-		else
-			last_state = false
-		end
-		return false
-	end
-	return step
-end
+-- not used
+-- function new_flip_flop()
+-- 	local last_state = false
+-- 	function step(state)
+-- 		if state then
+-- 			if not last_state then
+-- 				last_state = true
+-- 				return true
+-- 			end
+-- 		else
+-- 			last_state = false
+-- 		end
+-- 		return false
+-- 	end
+-- 	return step
+-- end
 
 function filter_sort(t, pred, key)
 	r = {}
@@ -94,6 +95,10 @@ function filter_sort(t, pred, key)
 		end
 	end
 	return r
+end
+
+function default_draw(e)
+	love.graphics.draw(e.graphics.texture, e.transform.x, e.transform.y, 0, 1, 1, e.graphics.ox, e.graphics.oy)
 end
 
 function is_on_ground(body, require_static, reverse)
@@ -126,57 +131,4 @@ function is_on_ground(body, require_static, reverse)
 		end
 	end
 	return false
-end
-
-function spawn_brick(choice)
-	local choice = choice or math.random(1, #bricksys.TEXTURES)
-	entitysys.new_brick(math.random(25, 775), math.random(-50, 0), choice, bricksys.TEXTURES[choice])
-end
-
-function set_boundaries()
-	local boundaries = entitysys.new_entity()
-	boundaries.tag.type = 'boundary'
-	boundaries.tag.ground = true
-	entitysys.attach_physics(boundaries, 0, 0, 'static')
-	local b = boundaries.physics.body
-	local s
-	local width, height = love.graphics.getDimensions()
-	s = love.physics.newEdgeShape(0, -100, width, -100) -- ceiling
-	love.physics.newFixture(b, s)
-	s = love.physics.newEdgeShape(0, -100, 0, height) -- left wall
-	love.physics.newFixture(b, s):setRestitution(0.1)
-	s = love.physics.newEdgeShape(0, height, width, height) -- floor
-	love.physics.newFixture(b, s)
-	s = love.physics.newEdgeShape(width, -100, width, height) -- right wall
-	love.physics.newFixture(b, s):setRestitution(0.1)
-end
-
-function new_input_keyboard(key_up, key_down, key_left, key_right, key_jump, key_grab)
-	local has_jump = false
-
-	function check_input()
-		local cx, cy, jump = 0, 0, false
-		if love.keyboard.isDown(key_up) then
-			cy = cy - 1
-		end
-		if love.keyboard.isDown(key_jump) then
-			if not has_jump then
-				has_jump = true
-				jump = true
-			end
-		else
-			has_jump = false
-		end
-		if love.keyboard.isDown(key_down) then
-			cy = cy + 1
-		end
-		if love.keyboard.isDown(key_left) then
-			cx = cx - 1
-		end
-		if love.keyboard.isDown(key_right) then
-			cx = cx + 1
-		end
-		return cx, cy, jump, love.keyboard.isDown(key_grab)
-	end
-	return check_input
 end

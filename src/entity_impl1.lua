@@ -69,6 +69,16 @@ function new_player(x, y, input_func)
 	attach_physics(e, x, y, 'dynamic', love.physics.newRectangleShape(WIDTH, WIDTH))
 	e.physics.fixture:setFriction(0)
 	e.physics.body:setFixedRotation(true)
+	-- e.graphics.shader = love.graphics.newShader([[
+	-- 		uniform float time;
+	-- 		vec4 effect(vec4 color_mask, Image texture, vec2 texture_coords, vec2 screen_coords) {
+	-- 			vec4 color = texture2D(texture, texture_coords);
+	-- 			if (true) {
+	-- 				color -= vec4(abs((texture_coords*2)-(1,1,1)), 0., 0.);
+	-- 			}
+	-- 			return color_mask * color;
+	-- 		}
+	-- 	]])
 	local shader = love.graphics.newShader([[
 			uniform float hue;
 			uniform vec2 player_pos;

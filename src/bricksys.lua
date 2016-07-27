@@ -47,6 +47,7 @@ function brick_world:freeze(brick)
 		local world_x = (x + 0.5) * GRID_SIZE
 		local world_y = (y + 0.5) * GRID_SIZE
 		b:setPosition(world_x, world_y)
+		brick.bricksys.last_hold.time = love.timer.getTime()
 		self:try_eliminate(x, y, 3)
 		return true, x, y  -- success
 	end
@@ -69,7 +70,7 @@ function brick_world:try_eliminate(start_x, start_y, least_group)
 			table.insert(affected, {self:get_grid_pos(e)})
 			entitysys.destroy_entity(e)
 		end
-		if latest_touch_player then
+		if latest_touch_player and now - latest_touch_time < 0.5 then
 			for i,v in ipairs(affected) do
 				local x, y = unpack(v)
 				if y ~= 0 then
@@ -79,10 +80,8 @@ function brick_world:try_eliminate(start_x, start_y, least_group)
 					end
 				end
 			end
+			latest_touch_player.bricksys.cb(latest_touch_player, #group)
 		end
-	end
-	if latest_touch_player and latest_touch_player.bricksys and latest_touch_player.bricksys.cb then
-		latest_touch_player.bricksys.cb(latest_touch_player, #group)
 	end
 end
 
