@@ -66,22 +66,21 @@ function new_image_debug(width, height, fill_color)
 	return love.graphics.newImage(image_data)
 end
 
--- not used
--- function new_flip_flop()
--- 	local last_state = false
--- 	function step(state)
--- 		if state then
--- 			if not last_state then
--- 				last_state = true
--- 				return true
--- 			end
--- 		else
--- 			last_state = false
--- 		end
--- 		return false
--- 	end
--- 	return step
--- end
+function new_flip_flop()
+	local last_state = false
+	function step(state)
+		if state then
+			if not last_state then
+				last_state = true
+				return true
+			end
+		else
+			last_state = false
+		end
+		return false
+	end
+	return step
+end
 
 function filter_sort(t, pred, key)
 	r = {}
