@@ -199,7 +199,7 @@ function new_ctrl_func(input_func, max_v, jump_mag, grab_cb, release_cb)
 	grab_cb      The callback(grabbed_entity) when grab a thing
 	release_cb   The callback(stick_x, stick_y) when grab key is released
 	--]]
-	local last_jump = nil
+	local latest_jump = nil
 	local last_dir = 1
 	local has_grab = false
 	local function update(self, dt)
@@ -223,14 +223,14 @@ function new_ctrl_func(input_func, max_v, jump_mag, grab_cb, release_cb)
 		local impulse_y
 		local on_ground = false
 		if jump then
-			last_jump = love.timer.getTime()
+			latest_jump = love.timer.getTime()
 		end
 		-- player can press jump button before reach the ground
-		if last_jump and love.timer.getTime() - last_jump < 0.25 then
+		if latest_jump and love.timer.getTime() - latest_jump < 0.25 then
 			on_ground = is_on_ground(b)
 		end
 		if on_ground then
-			last_jump = nil
+			latest_jump = nil
 			impulse_y = -jump_mag * b:getMass()
 		else
 			impulse_y = 0

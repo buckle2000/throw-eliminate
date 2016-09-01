@@ -36,15 +36,23 @@ function state:keypressed(key)
 	end
 end
 
-function state:joystickadded(joystick)
+function state:gamepadpressed(joystick, button)
 	assert(joystick:isGamepad(), "This game does not support gamepad with strange layout currently.")
-	local player = entitysys.new_player(400, -20, new_input_gamepad(joystick, "leftx", "lefty", "b", "a"))
-	self.joystick_players[joystick] = player
+	if self.joystick_players[joystick] then
+		if button == "x" then
+			self:joystickremoved(joystick)
+		end
+	else
+		local player = entitysys.new_player(400, -20, new_input_gamepad(joystick, "leftx", "lefty", "b", "a"))
+		self.joystick_players[joystick] = player
+	end
 end
 
 function state:joystickremoved(joystick)
-	entitysys.destroy_entity(self.joystick_players[joystick])
-	self.joystick_players[joystick] = nil
+	if self.joystick_players[joystick] then
+		entitysys.destroy_entity(self.joystick_players[joystick])
+		self.joystick_players[joystick] = nil
+	end
 end
 
 function spawn_brick(choice)
